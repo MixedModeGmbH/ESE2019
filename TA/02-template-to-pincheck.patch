@@ -1,0 +1,600 @@
+diff --git a/host/main.c b/host/main.c
+index 51ca373..71fbcaf 100644
+--- a/host/main.c
++++ b/host/main.c
+@@ -1,30 +1,17 @@
+-/*
+- * Copyright (c) 2016, Linaro Limited
+- * All rights reserved.
++/**-------------------------------------------------------------------------------------------------
+  *
+- * Redistribution and use in source and binary forms, with or without
+- * modification, are permitted provided that the following conditions are met:
++ * \file
++ * \copyright Copyright (c) 2019 Mixed Mode GmbH.
+  *
+- * 1. Redistributions of source code must retain the above copyright notice,
+- * this list of conditions and the following disclaimer.
++ * Derived from source code with Copyright (c) 2015-2017, Linaro Limited
+  *
+- * 2. Redistributions in binary form must reproduce the above copyright notice,
+- * this list of conditions and the following disclaimer in the documentation
+- * and/or other materials provided with the distribution.
++ * SPDX-License-Identifier: BSD-2-Clause
+  *
+- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+- * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+- * POSSIBILITY OF SUCH DAMAGE.
+- */
++ *------------------------------------------------------------------------------------------------*/
+ 
++/*--- Includes -----------------------------------------------------------------------------------*/
++
++/* Public */
+ #include <err.h>
+ #include <stdio.h>
+ #include <string.h>
+@@ -32,9 +19,12 @@
+ /* OP-TEE TEE client API (built by optee_client) */
+ #include <tee_client_api.h>
+ 
+-/* To the the UUID (found the the TA's h-file(s)) */
++/* Private */
++/* Get the UUID and internal API (found in the TA's h-file(s)) */
+ #include <hello_ese_ta.h>
+ 
++/*--- Functions ----------------------------------------------------------------------------------*/
++
+ int main(void)
+ {
+ 	TEEC_Result res;
+@@ -50,8 +40,8 @@ int main(void)
+ 		errx(1, "TEEC_InitializeContext failed with code 0x%x", res);
+ 
+ 	/*
+-	 * Open a session to the "hello world" TA, the TA will print "hello
+-	 * world!" in the log when the session is created.
++	 * Open a session to the "hello ese" TA, the TA will print the new PIN
++	 * in the log when the session is created.
+ 	 */
+ 	res = TEEC_OpenSession(&ctx, &sess, &uuid,
+ 			       TEEC_LOGIN_PUBLIC, NULL, NULL, &err_origin);
+@@ -59,44 +49,40 @@ int main(void)
+ 		errx(1, "TEEC_Opensession failed with code 0x%x origin 0x%x",
+ 			res, err_origin);
+ 
+-	/*
+-	 * Execute a function in the TA by invoking it, in this case
+-	 * we're incrementing a number.
+-	 *
+-	 * The value of command ID part and how the parameters are
+-	 * interpreted is part of the interface provided by the TA.
+-	 */
++    /* read the PIN and hand to TA for checking */
++	res = TEEC_ERROR_BAD_PARAMETERS;
++	while (res != TEEC_SUCCESS) {
++    	char pin[6];
++		puts("Please enter the six-digit PIN (extra chars will be ignored):");
++		for (int i=0; i < 6; i++){
++			pin[i] = getchar();
++		}
++		while(getchar()!=10); // clear buffer
++    	puts("\nChecking..");
+ 
+-	/* Clear the TEEC_Operation struct */
+-	memset(&op, 0, sizeof(op));
++		/*
++		 * Prepare the argument. Pass a read-only memref in the first 
++		 * parameter, the remaining three parameters are unused.
++		 */
++		memset(&op, 0, sizeof(op)); // Clear the TEEC_Operation struct
++		op.paramTypes = TEEC_PARAM_TYPES(TEEC_MEMREF_TEMP_INPUT, TEEC_NONE,
++						 TEEC_NONE, TEEC_NONE);
++		op.params[0].tmpref.size = 6;
++		op.params[0].tmpref.buffer = pin;
+ 
+-	/*
+-	 * Prepare the argument. Pass a value in the first parameter,
+-	 * the remaining three parameters are unused.
+-	 */
+-	op.paramTypes = TEEC_PARAM_TYPES(TEEC_VALUE_INOUT, TEEC_NONE,
+-					 TEEC_NONE, TEEC_NONE);
+-	op.params[0].value.a = 42;
+-
+-	/*
+-	 * TA_HELLO_ESE_CMD_INC_VALUE is the actual function in the TA to be
+-	 * called.
+-	 */
+-	printf("Invoking TA to increment %d\n", op.params[0].value.a);
+-	res = TEEC_InvokeCommand(&sess, TA_HELLO_ESE_CMD_INC_VALUE, &op,
+-				 &err_origin);
+-	if (res != TEEC_SUCCESS)
+-		errx(1, "TEEC_InvokeCommand failed with code 0x%x origin 0x%x",
+-			res, err_origin);
+-	printf("TA incremented value to %d\n", op.params[0].value.a);
+-
+-	/*
+-	 * We're done with the TA, close the session and
+-	 * destroy the context.
+-	 *
+-	 * The TA will print "Goodbye!" in the log when the
+-	 * session is closed.
+-	 */
++		/*
++		 * TA_HELLO_ESE_CMD_CHECK is the actual function in the TA.
++		 */
++		res = TEEC_InvokeCommand(&sess, TA_HELLO_ESE_CMD_CHECK, &op,
++					 &err_origin);
++		if (res != TEEC_SUCCESS){
++			printf("TEEC_InvokeCommand failed with code 0x%x origin 0x%x\n",
++				res, err_origin);
++			puts("You have entered an invalid PIN!");
++		} else {
++			puts("Welcome, please enter!");
++		}
++	}	
+ 
+ 	TEEC_CloseSession(&sess);
+ 
+@@ -104,3 +90,5 @@ int main(void)
+ 
+ 	return 0;
+ }
++
++/*--- End of File --------------------------------------------------------------------------------*/
+diff --git a/makeapp.sh b/makeapp.sh
+index fbc3aab..88103d8 100755
+--- a/makeapp.sh
++++ b/makeapp.sh
+@@ -1,5 +1,11 @@
+ #!/bin/bash
+ 
++### Standalone build of the TA (no buildroot)
++
++### Copyright (c) 2019 Mixed Mode GmbH
++
++### SPDX-License-Identifier: BSD-2-Clause
++
+ # The base directory containing the Cross-Compiler, build of optee_os
+ # and the Buildroot environment
+ BASE=$(pwd)/../..
+@@ -24,4 +30,4 @@ make -C ta
+ # copy build results
+ mkdir -p deploy 
+ cp build/hello_ese deploy/.
+-cp ta/*.ta deploy/.
+\ No newline at end of file
++cp ta/*.ta deploy/.
+diff --git a/newuuid.py b/newuuid.py
+index a4ddce1..96a5061 100755
+--- a/newuuid.py
++++ b/newuuid.py
+@@ -1,5 +1,12 @@
+ #!/usr/bin/env python3
+ 
++r"""Create a new UUID for a TA
++
++Copyright (c) 2019 Mixed Mode GmbH
++
++SPDX-License-Identifier: BSD-2-Clause
++"""
++
+ import uuid
+ 
+ u=uuid.uuid4()
+@@ -17,4 +24,4 @@ print('\nUUID for Header files:\n' +
+     ', \\ \n\t\t{ ' + 
+     '0x{:02x}'.format(u.clock_seq_hi_variant) + ', ' + 
+     '0x{:02x}'.format(u.clock_seq_low) + ', ' + 
+-    '0x' + ''.join(n) + '} }')
+\ No newline at end of file
++    '0x' + ''.join(n) + '} }')
+diff --git a/ta/hello_ese_ta.c b/ta/hello_ese_ta.c
+index 2ae3671..8164512 100644
+--- a/ta/hello_ese_ta.c
++++ b/ta/hello_ese_ta.c
+@@ -1,35 +1,50 @@
+-/*
+- * Copyright (c) 2016, Linaro Limited
+- * All rights reserved.
++/**-------------------------------------------------------------------------------------------------
+  *
+- * Redistribution and use in source and binary forms, with or without
+- * modification, are permitted provided that the following conditions are met:
++ * \file
++ * \copyright Copyright (c) 2019 Mixed Mode GmbH.
+  *
+- * 1. Redistributions of source code must retain the above copyright notice,
+- * this list of conditions and the following disclaimer.
++ * Derived from source code with Copyright (c) 2015-2017, Linaro Limited
+  *
+- * 2. Redistributions in binary form must reproduce the above copyright notice,
+- * this list of conditions and the following disclaimer in the documentation
+- * and/or other materials provided with the distribution.
++ * SPDX-License-Identifier: BSD-2-Clause
+  *
+- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+- * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+- * POSSIBILITY OF SUCH DAMAGE.
+- */
++ *------------------------------------------------------------------------------------------------*/
++
++/*--- Includes -----------------------------------------------------------------------------------*/
++/* Public */
++#include <stdio.h>
++#include <stdint.h>
+ 
+ #include <tee_internal_api.h>
+ #include <tee_internal_api_extensions.h>
+ 
++/* Private */
+ #include <hello_ese_ta.h>
+ 
++/*--- Types --------------------------------------------------------------------------------------*/
++
++struct pinsession {
++    uint8_t hashedPIN[32]; /**< \brief hashed value of secret PIN */
++    uint8_t sessionSalt[32]; /**< \brief salt used for hashing */
++};
++
++
++/*--- Static Function Declarations ---------------------------------------------------------------*/
++
++/*
++ *  Combines a given value (PIN) with a given salt and hashes once to demonstrate
++ *  use of the TEE Internal Core API. 
++ *  see GlobalPlatform TEE Internal Core API v1.1.2 page 154f for details.
++ * 
++ *  @param pin       The PIN to hash. Fixed to 6 digits.
++ *  @param salt      The salt to make the PIN more tasty,
++ *  @param hash      [out] The resulting hash value.
++  */
++static TEE_Result hashpin(const uint8_t pin[6],
++			    const uint8_t salt[32],
++			    uint8_t hash[32]);
++
++/*--- Functions ----------------------------------------------------------------------------------*/
++
+ /*
+  * Called when the instance of the TA is created. This is the first call in
+  * the TA.
+@@ -65,23 +80,40 @@ TEE_Result TA_OpenSessionEntryPoint(uint32_t param_types,
+ 						   TEE_PARAM_TYPE_NONE,
+ 						   TEE_PARAM_TYPE_NONE);
+ 
+-	DMSG("has been called");
++    struct pinsession *state; /**< \brief (secret) session state */
++	uint8_t newPIN[7] = {1,2,3,4,5,6,0}; /**< \brief buffer for new PIN with null terminator */
++	TEE_Result res = TEE_SUCCESS;
++	(void)&params; /* Unused parameters */
+ 
+ 	if (param_types != exp_param_types)
+ 		return TEE_ERROR_BAD_PARAMETERS;
+ 
+-	/* Unused parameters */
+-	(void)&params;
+-	(void)&sess_ctx;
++	state = TEE_Malloc(sizeof(*state), 0);
++    if (!state)
++        return TEE_ERROR_OUT_OF_MEMORY;
+ 
+-	/*
+-	 * The DMSG() macro is non-standard, TEE Internal API doesn't
+-	 * specify any means to logging from a TA.
+-	 */
+-	IMSG("Hello World!\n");
++    TEE_GenerateRandom(state->sessionSalt,32);
++    TEE_GenerateRandom(newPIN,6);
++	
++    for (int i = 0; i < 6; i++){
++		newPIN[i]=(newPIN[i] % 10) + 48; // ASCII digits
++	}
++	
++	newPIN[6] = 0;
++	res = hashpin(newPIN,state->sessionSalt,state->hashedPIN);
++
++    if (res != TEE_SUCCESS) {
++		EMSG("Could not hash PIN");
++		TEE_Free(state);
++		(void)&sess_ctx; // unused
++	} else {
++		printf("\n=================\n");	
++        printf("New Pin is %s",newPIN);	
++		printf("\n=================\n\n");	
++        *sess_ctx = state; // pass session pointer
++	}
+ 
+-	/* If return value != TEE_SUCCESS the session will not be created. */
+-	return TEE_SUCCESS;
++	return res;
+ }
+ 
+ /*
+@@ -90,49 +122,42 @@ TEE_Result TA_OpenSessionEntryPoint(uint32_t param_types,
+  */
+ void TA_CloseSessionEntryPoint(void __maybe_unused *sess_ctx)
+ {
+-	(void)&sess_ctx; /* Unused parameter */
+-	IMSG("Goodbye!\n");
++	struct pinsession *state = sess_ctx;
++	TEE_Free(state);
+ }
+ 
+-static TEE_Result inc_value(uint32_t param_types,
+-	TEE_Param params[4])
++static TEE_Result check_value(uint32_t param_types,
++	TEE_Param params[4], void * sess_ctx)
+ {
+-	uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_INOUT,
++	uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_MEMREF_INPUT,
+ 						   TEE_PARAM_TYPE_NONE,
+ 						   TEE_PARAM_TYPE_NONE,
+ 						   TEE_PARAM_TYPE_NONE);
+-
+-	DMSG("has been called");
+-
++	
++	TEE_Result res = TEE_ERROR_ACCESS_DENIED;
++	struct pinsession *state = sess_ctx;
++	
+ 	if (param_types != exp_param_types)
+ 		return TEE_ERROR_BAD_PARAMETERS;
+ 
+-	IMSG("Got value: %u from NW", params[0].value.a);
+-	params[0].value.a++;
+-	IMSG("Increase value to: %u", params[0].value.a);
+-
+-	return TEE_SUCCESS;
+-}
+-
+-static TEE_Result dec_value(uint32_t param_types,
+-	TEE_Param params[4])
+-{
+-	uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_INOUT,
+-						   TEE_PARAM_TYPE_NONE,
+-						   TEE_PARAM_TYPE_NONE,
+-						   TEE_PARAM_TYPE_NONE);
+-
+-	DMSG("has been called");
+-
+-	if (param_types != exp_param_types)
++	if (params[0].memref.size != 6)
+ 		return TEE_ERROR_BAD_PARAMETERS;
+ 
+-	IMSG("Got value: %u from NW", params[0].value.a);
+-	params[0].value.a--;
+-	IMSG("Decrease value to: %u", params[0].value.a);
++    uint8_t tmpHash[32];
++    res = hashpin(params[0].memref.buffer,state->sessionSalt,tmpHash);
+ 
+-	return TEE_SUCCESS;
++    /* TEE_MemCompare does not give any guarantees about being constant time! */
++	
++	if (res == TEE_SUCCESS && (TEE_MemCompare(tmpHash,state->hashedPIN,32) == 0)) {
++		res = TEE_SUCCESS;
++	} else {
++		EMSG("PIN mismatch");
++		res = TEE_ERROR_ACCESS_DENIED;
++	}
++
++	return res;
+ }
++
+ /*
+  * Called when a TA is invoked. sess_ctx hold that value that was
+  * assigned by TA_OpenSessionEntryPoint(). The rest of the paramters
+@@ -142,14 +167,60 @@ TEE_Result TA_InvokeCommandEntryPoint(void __maybe_unused *sess_ctx,
+ 			uint32_t cmd_id,
+ 			uint32_t param_types, TEE_Param params[4])
+ {
+-	(void)&sess_ctx; /* Unused parameter */
+-
+ 	switch (cmd_id) {
+-	case TA_HELLO_ESE_CMD_INC_VALUE:
+-		return inc_value(param_types, params);
+-	case TA_HELLO_ESE_CMD_DEC_VALUE:
+-		return dec_value(param_types, params);
++	case TA_HELLO_ESE_CMD_CHECK:
++		return check_value(param_types, params, sess_ctx);
+ 	default:
+ 		return TEE_ERROR_BAD_PARAMETERS;
+ 	}
+ }
++
++/*--- Static Functions ---------------------------------------------------------------*/
++
++static TEE_Result hashpin(const uint8_t pin[6],
++			    const uint8_t salt[32],
++			    uint8_t hash[32])
++{
++	TEE_OperationHandle op_handle = TEE_HANDLE_NULL;
++	TEE_Result res = TEE_SUCCESS;
++
++	/* normally one would check parameters for sensible values here and
++			return TEE_ERROR_BAD_PARAMETERS;
++	upon failure */
++
++	/* check for NULL pointers */
++	if (!pin || !salt || !hash)
++		return TEE_ERROR_BAD_PARAMETERS;
++
++    /*
++	 * 1. Allocate cryptographic (operation) handle for the Hash operation.
++	 *    No extra data (0 bits).
++	 */
++	res = TEE_AllocateOperation(&op_handle, TEE_ALG_SHA256, TEE_MODE_DIGEST,
++				    0);
++	if (res != TEE_SUCCESS) {
++		EMSG("0x%08x", res);
++		goto exit;
++	}
++   
++    /* more complex operations such as HMACs or encryption would create 
++	   transient objects for keys etc. here */
++
++    /* we simply hash together PIN and Salt - THIS IS NOT SECURE IN ANY WAY 
++	   for production one should use something like Argon2i or at least PBKDF2
++	*/
++
++	/* 2. Do the hashing */
++	size_t actualhashLen = 32;
++	TEE_DigestUpdate(op_handle, pin, 6);
++	res = TEE_DigestDoFinal(op_handle, salt, 32, hash, &actualhashLen);
++	if (res != TEE_SUCCESS || actualhashLen != 32) {
++		EMSG("Error while hashing.");
++		goto exit;
++	}
++exit:
++	if (op_handle != TEE_HANDLE_NULL)
++		TEE_FreeOperation(op_handle);
++
++	return res;
++}
+diff --git a/ta/include/hello_ese_ta.h b/ta/include/hello_ese_ta.h
+index f7d5570..ba7a6b9 100644
+--- a/ta/include/hello_ese_ta.h
++++ b/ta/include/hello_ese_ta.h
+@@ -1,32 +1,21 @@
+-/*
+- * Copyright (c) 2016-2017, Linaro Limited
+- * All rights reserved.
++/**-------------------------------------------------------------------------------------------------
+  *
+- * Redistribution and use in source and binary forms, with or without
+- * modification, are permitted provided that the following conditions are met:
++ * \file
+  *
+- * 1. Redistributions of source code must retain the above copyright notice,
+- * this list of conditions and the following disclaimer.
++ * \brief API of our Trusted Application
+  *
+- * 2. Redistributions in binary form must reproduce the above copyright notice,
+- * this list of conditions and the following disclaimer in the documentation
+- * and/or other materials provided with the distribution.
++ * \copyright Copyright (c) 2019 Mixed Mode GmbH.
+  *
+- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+- * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+- * POSSIBILITY OF SUCH DAMAGE.
+- */
+-#ifndef TA_HELLO_ESE_H
+-#define TA_HELLO_ESE_H
++ * Derived from source code with Copyright (c) 2015-2017, Linaro Limited
++ *
++ * SPDX-License-Identifier: BSD-2-Clause
++ *
++ *------------------------------------------------------------------------------------------------*/
++
++#ifndef C_HELLO_ESE_TA_H
++#define C_HELLO_ESE_TA_H
+ 
++/*--- Macros -------------------------------------------------------------------------------------*/
+ 
+ /*
+  * This UUID is generated with uuidgen
+@@ -37,7 +26,8 @@
+                 { 0xbf, 0xe4, 0x1e, 0x2c, 0xd7, 0xe7, 0x78, 0x1f} }
+ 
+ /* The function IDs implemented in this TA */
+-#define TA_HELLO_ESE_CMD_INC_VALUE		0
+-#define TA_HELLO_ESE_CMD_DEC_VALUE		1
++#define TA_HELLO_ESE_CMD_CHECK		0
++
++#endif /* ifndef C_HELLO_ESE_TA_H */
+ 
+-#endif /*TA_HELLO_ESE_H*/
++/*--- End of File --------------------------------------------------------------------------------*/
+diff --git a/ta/user_ta_header_defines.h b/ta/user_ta_header_defines.h
+index 9bc7f72..443aca4 100644
+--- a/ta/user_ta_header_defines.h
++++ b/ta/user_ta_header_defines.h
+@@ -1,40 +1,33 @@
+-/*
+- * Copyright (c) 2016-2017, Linaro Limited
+- * All rights reserved.
++/**-------------------------------------------------------------------------------------------------
+  *
+- * Redistribution and use in source and binary forms, with or without
+- * modification, are permitted provided that the following conditions are met:
++ * \file
+  *
+- * 1. Redistributions of source code must retain the above copyright notice,
+- * this list of conditions and the following disclaimer.
++ * \brief Configuration of our Trusted Application
+  *
+- * 2. Redistributions in binary form must reproduce the above copyright notice,
+- * this list of conditions and the following disclaimer in the documentation
+- * and/or other materials provided with the distribution.
++ * \copyright Copyright (c) 2019 Mixed Mode GmbH.
+  *
+- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+- * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+- * POSSIBILITY OF SUCH DAMAGE.
+- */
++ * Derived from source code with Copyright (c) 2015-2017, Linaro Limited
++ *
++ * SPDX-License-Identifier: BSD-2-Clause
++ *
++ *------------------------------------------------------------------------------------------------*/
+ 
+ /*
+  * The name of this file must not be modified
+  */
+ 
+-#ifndef USER_TA_HEADER_DEFINES_H
+-#define USER_TA_HEADER_DEFINES_H
++#ifndef C_USER_TA_HEADER_DEFINES_H
++#define C_USER_TA_HEADER_DEFINES_H
++
++
++/*--- Includes -----------------------------------------------------------------------------------*/
++/* Private */
+ 
+ /* To get the TA UUID definition */
+ #include <hello_ese_ta.h>
+ 
++/*--- Macros -------------------------------------------------------------------------------------*/
++
+ #define TA_UUID				TA_HELLO_ESE_UUID
+ 
+ /*
+@@ -63,4 +56,6 @@
+     { "org.linaro.optee.examples.hello_ese.property2", \
+ 	USER_TA_PROP_TYPE_U32, &(const uint32_t){ 0x0010 } }
+ 
+-#endif /* USER_TA_HEADER_DEFINES_H */
++#endif /* ifndef C_USER_TA_HEADER_DEFINES_H */
++
++/*--- End of File --------------------------------------------------------------------------------*/

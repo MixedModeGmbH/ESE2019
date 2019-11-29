@@ -1,0 +1,314 @@
+diff --git linarotmp/tmp.UWvS5BtNcS/Android.mk MMtmp/tmp.UWvS5BtNcS/Android.mk
+deleted file mode 100644
+index 194cf66..0000000
+--- linarotmp/tmp.UWvS5BtNcS/Android.mk
++++ /dev/null
+@@ -1,21 +0,0 @@
+-###################### optee-hello-world ######################
+-LOCAL_PATH := $(call my-dir)
+-
+-OPTEE_CLIENT_EXPORT = $(LOCAL_PATH)/../../optee_client/out/export
+-
+-include $(CLEAR_VARS)
+-LOCAL_CFLAGS += -DANDROID_BUILD
+-LOCAL_CFLAGS += -Wall
+-
+-LOCAL_SRC_FILES += host/main.c
+-
+-LOCAL_C_INCLUDES := $(LOCAL_PATH)/ta/include \
+-		$(OPTEE_CLIENT_EXPORT)/include \
+-
+-LOCAL_SHARED_LIBRARIES := libteec
+-LOCAL_MODULE := optee_example_hello_world
+-LOCAL_VENDOR_MODULE := true
+-LOCAL_MODULE_TAGS := optional
+-include $(BUILD_EXECUTABLE)
+-
+-include $(LOCAL_PATH)/ta/Android.mk
+diff --git linarotmp/tmp.UWvS5BtNcS/CMakeLists.txt MMtmp/tmp.mfbKyukVOa/CMakeLists.txt
+index 937b8cf..60e8e0a 100644
+--- linarotmp/tmp.UWvS5BtNcS/CMakeLists.txt
++++ MMtmp/tmp.mfbKyukVOa/CMakeLists.txt
+@@ -1,4 +1,26 @@
+-project (optee_example_hello_world C)
++cmake_minimum_required (VERSION 3.2)
++project (hello_ese C)
++
++set (CMAKE_TOOLCHAIN_FILE CMakeToolchain.txt)
++include(GNUInstallDirs)
++
++add_compile_options (-Wall)
++
++find_program(CCACHE_FOUND ccache)
++if(CCACHE_FOUND)
++	set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ccache)
++	set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK ccache)
++endif(CCACHE_FOUND)
++
++set(CCACHE_FOUND "$ENV{BASE}/out-br/host/bin/ccache" CACHE FILEPATH "")
++set(CMAKE_AR "$ENV{BASE}/out-br/host/bin/arm-linux-gnueabihf-ar" CACHE FILEPATH "")
++set(CMAKE_LINKER "$ENV{BASE}/out-br/host/bin/arm-linux-gnueabihf-ld" CACHE FILEPATH "")
++set(CMAKE_NM "$ENV{BASE}/out-br/host/bin/arm-linux-gnueabihf-nm" CACHE FILEPATH "")
++set(CMAKE_OBJCOPY "$ENV{BASE}/out-br/host/bin/arm-linux-gnueabihf-objcopy" CACHE FILEPATH "")
++set(CMAKE_OBJDUMP "$ENV{BASE}/out-br/host/bin/arm-linux-gnueabihf-objdump" CACHE FILEPATH "")
++set(CMAKE_RANLIB "$ENV{BASE}/out-br/host/bin/arm-linux-gnueabihf-ranlib" CACHE FILEPATH "")
++set(CMAKE_STRIP "$ENV{BASE}/out-br/host/bin/arm-linux-gnueabihf-strip" CACHE FILEPATH "")
++set(CMAKE_TOOLCHAIN_FILE "$ENV{BASE}/out-br/host/share/buildroot/toolchainfile.cmake" CACHE FILEPATH "")
+ 
+ set (SRC host/main.c)
+ 
+diff --git linarotmp/tmp.mfbKyukVOa/CMakeToolchain.txt MMtmp/tmp.mfbKyukVOa/CMakeToolchain.txt
+new file mode 100644
+index 0000000..3c10f45
+--- /dev/null
++++ MMtmp/tmp.mfbKyukVOa/CMakeToolchain.txt
+@@ -0,0 +1 @@
++set (CMAKE_SYSTEM_NAME Linux)
+diff --git linarotmp/tmp.UWvS5BtNcS/host/Makefile MMtmp/tmp.mfbKyukVOa/host/Makefile
+index c4c8239..56c21b6 100644
+--- linarotmp/tmp.UWvS5BtNcS/host/Makefile
++++ MMtmp/tmp.mfbKyukVOa/host/Makefile
+@@ -12,7 +12,7 @@ CFLAGS += -Wall -I../ta/include -I$(TEEC_EXPORT)/include -I./include
+ #Add/link other required libraries here
+ LDADD += -lteec -L$(TEEC_EXPORT)/lib
+ 
+-BINARY = optee_example_hello_world
++BINARY = optee_example_hello_ese
+ 
+ .PHONY: all
+ all: $(BINARY)
+diff --git linarotmp/tmp.UWvS5BtNcS/host/main.c MMtmp/tmp.mfbKyukVOa/host/main.c
+index 378082b..51ca373 100644
+--- linarotmp/tmp.UWvS5BtNcS/host/main.c
++++ MMtmp/tmp.mfbKyukVOa/host/main.c
+@@ -33,7 +33,7 @@
+ #include <tee_client_api.h>
+ 
+ /* To the the UUID (found the the TA's h-file(s)) */
+-#include <hello_world_ta.h>
++#include <hello_ese_ta.h>
+ 
+ int main(void)
+ {
+@@ -41,7 +41,7 @@ int main(void)
+ 	TEEC_Context ctx;
+ 	TEEC_Session sess;
+ 	TEEC_Operation op;
+-	TEEC_UUID uuid = TA_HELLO_WORLD_UUID;
++	TEEC_UUID uuid = TA_HELLO_ESE_UUID;
+ 	uint32_t err_origin;
+ 
+ 	/* Initialize a context connecting us to the TEE */
+@@ -79,11 +79,11 @@ int main(void)
+ 	op.params[0].value.a = 42;
+ 
+ 	/*
+-	 * TA_HELLO_WORLD_CMD_INC_VALUE is the actual function in the TA to be
++	 * TA_HELLO_ESE_CMD_INC_VALUE is the actual function in the TA to be
+ 	 * called.
+ 	 */
+ 	printf("Invoking TA to increment %d\n", op.params[0].value.a);
+-	res = TEEC_InvokeCommand(&sess, TA_HELLO_WORLD_CMD_INC_VALUE, &op,
++	res = TEEC_InvokeCommand(&sess, TA_HELLO_ESE_CMD_INC_VALUE, &op,
+ 				 &err_origin);
+ 	if (res != TEEC_SUCCESS)
+ 		errx(1, "TEEC_InvokeCommand failed with code 0x%x origin 0x%x",
+diff --git linarotmp/tmp.mfbKyukVOa/makeapp.sh MMtmp/tmp.mfbKyukVOa/makeapp.sh
+new file mode 100755
+index 0000000..fbc3aab
+--- /dev/null
++++ MMtmp/tmp.mfbKyukVOa/makeapp.sh
+@@ -0,0 +1,27 @@
++#!/bin/bash
++
++# The base directory containing the Cross-Compiler, build of optee_os
++# and the Buildroot environment
++BASE=$(pwd)/../..
++
++export HOST_PATH=${PATH}
++export PATH=${BASE}/out-br/host/bin:${BASE}/out-br/host/sbin:${PATH}
++export DETERMINISTIC_BUILD=1
++export SOURCE_DATE_EPOCH=1
++export CC=${BASE}/out-br/host/bin/arm-linux-gnueabihf-gcc
++
++# REE Side
++mkdir -p build
++cd build 
++cmake -G Ninja ..
++ninja
++cd ..
++
++# TEE Side
++export TA_DEV_KIT_DIR="${BASE}/optee_os/out/arm/export-ta_arm32/"
++make -C ta
++
++# copy build results
++mkdir -p deploy 
++cp build/hello_ese deploy/.
++cp ta/*.ta deploy/.
+\ No newline at end of file
+diff --git linarotmp/tmp.mfbKyukVOa/newuuid.py MMtmp/tmp.mfbKyukVOa/newuuid.py
+new file mode 100755
+index 0000000..a4ddce1
+--- /dev/null
++++ MMtmp/tmp.mfbKyukVOa/newuuid.py
+@@ -0,0 +1,20 @@
++#!/usr/bin/env python3
++
++import uuid
++
++u=uuid.uuid4()
++
++print('UUID as string:')
++print(u)
++n = [', 0x'] * 11
++n[::2] = ['{:12x}'.format(u.node)[i:i + 2] for i in range(0, 12, 2)]
++
++print('\nUUID for Header files:\n' +
++    '#define TA_HELLO_ESE_UUID \ \n\t{ ' +
++    '0x{:08x}'.format(u.time_low) + ', ' + 
++    '0x{:04x}'.format(u.time_mid) + ', ' + 
++    '0x{:04x}'.format(u.time_hi_version) + 
++    ', \\ \n\t\t{ ' + 
++    '0x{:02x}'.format(u.clock_seq_hi_variant) + ', ' + 
++    '0x{:02x}'.format(u.clock_seq_low) + ', ' + 
++    '0x' + ''.join(n) + '} }')
+\ No newline at end of file
+diff --git linarotmp/tmp.mfbKyukVOa/qemu-copy-paste.txt MMtmp/tmp.mfbKyukVOa/qemu-copy-paste.txt
+new file mode 100644
+index 0000000..34e5e3d
+--- /dev/null
++++ MMtmp/tmp.mfbKyukVOa/qemu-copy-paste.txt
+@@ -0,0 +1,5 @@
++# log in as root to mount shared host dir
++
++mkdir -p /host && mount -t 9p -o trans=virtio host /host
++cd /host/hello_ese/deploy && cp *.ta /lib/optee_armtz/
++./hello_ese
+diff --git linarotmp/tmp.UWvS5BtNcS/ta/Android.mk MMtmp/tmp.UWvS5BtNcS/ta/Android.mk
+deleted file mode 100644
+index a1ff14a..0000000
+--- linarotmp/tmp.UWvS5BtNcS/ta/Android.mk
++++ /dev/null
+@@ -1,4 +0,0 @@
+-LOCAL_PATH := $(call my-dir)
+-
+-local_module := 8aaaf200-2450-11e4-abe2-0002a5d5c51b.ta
+-include $(BUILD_OPTEE_MK)
+diff --git linarotmp/tmp.UWvS5BtNcS/ta/Makefile MMtmp/tmp.mfbKyukVOa/ta/Makefile
+index 3d2e6fc..940d6ec 100644
+--- linarotmp/tmp.UWvS5BtNcS/ta/Makefile
++++ MMtmp/tmp.mfbKyukVOa/ta/Makefile
+@@ -2,7 +2,7 @@ CFG_TEE_TA_LOG_LEVEL ?= 4
+ CPPFLAGS += -DCFG_TEE_TA_LOG_LEVEL=$(CFG_TEE_TA_LOG_LEVEL)
+ 
+ # The UUID for the Trusted Application
+-BINARY=8aaaf200-2450-11e4-abe2-0002a5d5c51b
++BINARY=9ae548e8-d0eb-4377-bfe4-1e2cd7e7781f
+ 
+ -include $(TA_DEV_KIT_DIR)/mk/ta_dev_kit.mk
+ 
+diff --git linarotmp/tmp.UWvS5BtNcS/ta/hello_world_ta.c MMtmp/tmp.mfbKyukVOa/ta/hello_ese_ta.c
+similarity index 97%
+rename from /tmp/tmp.UWvS5BtNcS/ta/hello_world_ta.c
+rename to /tmp/tmp.mfbKyukVOa/ta/hello_ese_ta.c
+index 2423b30..2ae3671 100644
+--- linarotmp/tmp.UWvS5BtNcS/ta/hello_world_ta.c
++++ MMtmp/tmp.mfbKyukVOa/ta/hello_ese_ta.c
+@@ -28,7 +28,7 @@
+ #include <tee_internal_api.h>
+ #include <tee_internal_api_extensions.h>
+ 
+-#include <hello_world_ta.h>
++#include <hello_ese_ta.h>
+ 
+ /*
+  * Called when the instance of the TA is created. This is the first call in
+@@ -145,9 +145,9 @@ TEE_Result TA_InvokeCommandEntryPoint(void __maybe_unused *sess_ctx,
+ 	(void)&sess_ctx; /* Unused parameter */
+ 
+ 	switch (cmd_id) {
+-	case TA_HELLO_WORLD_CMD_INC_VALUE:
++	case TA_HELLO_ESE_CMD_INC_VALUE:
+ 		return inc_value(param_types, params);
+-	case TA_HELLO_WORLD_CMD_DEC_VALUE:
++	case TA_HELLO_ESE_CMD_DEC_VALUE:
+ 		return dec_value(param_types, params);
+ 	default:
+ 		return TEE_ERROR_BAD_PARAMETERS;
+diff --git linarotmp/tmp.UWvS5BtNcS/ta/include/hello_world_ta.h MMtmp/tmp.mfbKyukVOa/ta/include/hello_ese_ta.h
+similarity index 84%
+rename from /tmp/tmp.UWvS5BtNcS/ta/include/hello_world_ta.h
+rename to /tmp/tmp.mfbKyukVOa/ta/include/hello_ese_ta.h
+index 8e40276..f7d5570 100644
+--- linarotmp/tmp.UWvS5BtNcS/ta/include/hello_world_ta.h
++++ MMtmp/tmp.mfbKyukVOa/ta/include/hello_ese_ta.h
+@@ -24,20 +24,20 @@
+  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+  * POSSIBILITY OF SUCH DAMAGE.
+  */
+-#ifndef TA_HELLO_WORLD_H
+-#define TA_HELLO_WORLD_H
++#ifndef TA_HELLO_ESE_H
++#define TA_HELLO_ESE_H
+ 
+ 
+ /*
+  * This UUID is generated with uuidgen
+  * the ITU-T UUID generator at http://www.itu.int/ITU-T/asn1/uuid.html
+  */
+-#define TA_HELLO_WORLD_UUID \
+-	{ 0x8aaaf200, 0x2450, 0x11e4, \
+-		{ 0xab, 0xe2, 0x00, 0x02, 0xa5, 0xd5, 0xc5, 0x1b} }
++#define TA_HELLO_ESE_UUID \
++        { 0x9ae548e8, 0xd0eb, 0x4377, \
++                { 0xbf, 0xe4, 0x1e, 0x2c, 0xd7, 0xe7, 0x78, 0x1f} }
+ 
+ /* The function IDs implemented in this TA */
+-#define TA_HELLO_WORLD_CMD_INC_VALUE		0
+-#define TA_HELLO_WORLD_CMD_DEC_VALUE		1
++#define TA_HELLO_ESE_CMD_INC_VALUE		0
++#define TA_HELLO_ESE_CMD_DEC_VALUE		1
+ 
+-#endif /*TA_HELLO_WORLD_H*/
++#endif /*TA_HELLO_ESE_H*/
+diff --git linarotmp/tmp.UWvS5BtNcS/ta/sub.mk MMtmp/tmp.mfbKyukVOa/ta/sub.mk
+index 957af07..7763636 100644
+--- linarotmp/tmp.UWvS5BtNcS/ta/sub.mk
++++ MMtmp/tmp.mfbKyukVOa/ta/sub.mk
+@@ -1,5 +1,5 @@
+ global-incdirs-y += include
+-srcs-y += hello_world_ta.c
++srcs-y += hello_ese_ta.c
+ 
+ # To remove a certain compiler flag, add a line like this
+ #cflags-template_ta.c-y += -Wno-strict-prototypes
+diff --git linarotmp/tmp.UWvS5BtNcS/ta/user_ta_header_defines.h MMtmp/tmp.mfbKyukVOa/ta/user_ta_header_defines.h
+index 3aad90e..9bc7f72 100644
+--- linarotmp/tmp.UWvS5BtNcS/ta/user_ta_header_defines.h
++++ MMtmp/tmp.mfbKyukVOa/ta/user_ta_header_defines.h
+@@ -33,9 +33,9 @@
+ #define USER_TA_HEADER_DEFINES_H
+ 
+ /* To get the TA UUID definition */
+-#include <hello_world_ta.h>
++#include <hello_ese_ta.h>
+ 
+-#define TA_UUID				TA_HELLO_WORLD_UUID
++#define TA_UUID				TA_HELLO_ESE_UUID
+ 
+ /*
+  * TA properties: multi-instance TA, no specific attribute
+@@ -57,10 +57,10 @@
+ 
+ /* Extra properties */
+ #define TA_CURRENT_TA_EXT_PROPERTIES \
+-    { "org.linaro.optee.examples.hello_world.property1", \
++    { "org.linaro.optee.examples.hello_ese.property1", \
+ 	USER_TA_PROP_TYPE_STRING, \
+         "Some string" }, \
+-    { "org.linaro.optee.examples.hello_world.property2", \
++    { "org.linaro.optee.examples.hello_ese.property2", \
+ 	USER_TA_PROP_TYPE_U32, &(const uint32_t){ 0x0010 } }
+ 
+ #endif /* USER_TA_HEADER_DEFINES_H */
